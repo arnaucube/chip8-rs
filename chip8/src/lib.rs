@@ -1,3 +1,4 @@
+use rand::Rng;
 use std::fs;
 use std::io::Read;
 
@@ -76,7 +77,208 @@ impl Chip8 {
         let y: usize = ((self.opcode & 0x00F0) >> 4) as usize;
         let nn: u8 = (self.opcode & 0x00FF) as u8;
         let nnn: u16 = (self.opcode & 0x0FFF) as u16;
-        // TODO
+
+        // Decode Opcode
+        // https://en.wikipedia.org/wiki/CHIP-8#Opcode_table
+        match self.opcode & 0xF000 {
+            0x0000 => {
+                match self.opcode & 0x000F {
+                    0x0000 => {
+                        // 00E0 Clear screen
+                        for i in 0..self.gfx.len() {
+                            self.gfx[i] = 0;
+                        }
+                        self.pc += 2;
+                        self.draw_flag = true;
+                    }
+                    0x000E => {
+                        // 00EE Returns from a subroutine
+                        self.sp -= 1;
+                        self.pc = self.stack[self.sp as usize];
+                        self.pc += 2;
+                    }
+                    _ => println!("unk {:x}", self.opcode),
+                }
+            }
+            0x1000 => {
+                // 1NNN Jumps to address NNN
+                self.pc = nnn;
+            }
+            0x2000 => {
+                // 2NNN Calls subroutine at NNN
+                self.stack[self.sp as usize] = self.pc;
+                self.sp += 1;
+                self.pc = nnn;
+            }
+            0x3000 => {
+                // 3XNN Skips the next instruction if VX equals NN. (Usually
+                // the next instruction is a jump to skip a code block)
+                if self.v[x] == nn {
+                    self.pc += 2;
+                }
+                self.pc += 2;
+            }
+            0x4000 => {
+                // 4XNN Skips the next instruction if VX doesn't equal NN.
+                // (Usually the next instruction is a jump to skip a code
+                // block)
+                if self.v[x] != nn {
+                    self.pc += 2;
+                }
+                self.pc += 2;
+            }
+            0x5000 => {
+                // 5XY0 Skips the next instruction if VX equals VY. (Usually
+                // the next instruction is a jump to skip a code block)
+                if self.v[x] == self.v[y] {
+                    self.pc += 2;
+                }
+                self.pc += 2;
+            }
+            0x6000 => {
+                // 6XNN Sets VX to NN
+                self.v[x] = nn;
+                self.pc += 2;
+            }
+            0x7000 => {
+                // 7XNN Adds NN to VX. (Carry flag is not changed)
+                self.v[x] += nn;
+                self.pc += 2;
+            }
+            0x8000 => {
+                // TODO
+            }
+            0x9000 => {
+                // 9XY0 Skips the next instruction if VX doesn't equal VY.
+                // (Usually the next instruction is a jump to skip a code
+                // block)
+                if self.v[x] != self.v[y] {
+                    self.pc += 2;
+                }
+                self.pc += 2;
+            }
+            0xA000 => {
+                // ANNN set index to NNN position
+                self.index = nnn;
+                self.pc += 2;
+            }
+            0xB000 => {
+                // BNNN Jumps to the address NNN plus V0
+                self.pc = nnn + self.v[0] as u16;
+                self.pc += 2;
+            }
+            0xC000 => {
+                // CXNN Sets VX to the result of a bitwise and operation on a
+                // random number (Typically: 0 to 255) and NN
+                let mut rng = rand::thread_rng();
+                let r: u8 = rng.gen_range(0, 255);
+                self.v[x] = r & nn;
+                self.pc += 2;
+            }
+            0xD000 => {
+                // TODO
+
+                self.draw_flag = true;
+                self.pc += 2;
+            }
+            0xE000 => {
+                match self.opcode & 0x00FF {
+                    0x009E => {
+                        // EX9E Skips the next instruction if the key stored in
+                        // VX is pressed. (Usually the next instruction is a
+                        // jump to skip a code block)
+                        if self.key[self.v[x] as usize] != 0 {
+                            self.pc += 2;
+                        }
+                        self.pc += 2;
+                    }
+                    0x00A1 => {
+                        // EXA1 Skips the next instruction if the key stored in
+                        // VX isn't pressed. (Usually the next instruction is a
+                        // jump to skip a code block)
+                        if self.key[self.v[x] as usize] != 1 {
+                            self.pc += 2;
+                        }
+                        self.pc += 2;
+                    }
+                    _ => println!("unk {:x}", self.opcode),
+                }
+            }
+            0xF000 => {
+                match self.opcode & 0x00FF {
+                    0x0007 => {
+                        // FX07 Sets VX to the value of the delay timer
+                        self.v[x] = self.delay_timer;
+                        self.pc += 2;
+                    }
+                    0x000A => {
+                        // FX0A A key press is awaited, and then stored in VX.
+                        // (Blocking Operation. All instruction halted until
+                        // next key event)
+                        let mut pressed: bool = false;
+                        for i in 0..16 {
+                            if self.key[i] == 1 {
+                                self.v[x] = i as u8;
+                                pressed = true;
+                            }
+                        }
+                        if pressed {
+                            self.pc += 2;
+                        }
+                    }
+                    0x0015 => {
+                        // FX15 Sets the delay timer to VX
+                        self.delay_timer = self.v[x];
+                        self.pc += 2;
+                    }
+                    0x0018 => {
+                        // FX18 Sets the sound timer to VX
+                        self.sound_timer = self.v[x];
+                        self.pc += 2;
+                    }
+                    0x001E => {
+                        // FX1E Adds VX to I. VF is not affected
+                        self.index += self.v[x] as u16;
+                        self.pc += 2;
+                    }
+                    0x0029 => {
+                        // FX29 Sets I to the location of the sprite for the
+                        // character in VX. Characters 0-F (in hexadecimal) are
+                        // represented by a 4x5 font
+                        self.index = self.v[x] as u16 * 5;
+                        self.pc += 2;
+                    }
+                    0x0033 => {
+                        self.memory[self.index as usize] = self.v[x] / 100;
+                        self.memory[self.index as usize + 1] = (self.v[x] / 10) % 10;
+                        self.memory[self.index as usize + 2] = (self.v[x] / 100) % 10;
+                        self.pc += 2;
+                    }
+                    0x0055 => {
+                        // FX55 Stores V0 to VX (including VX) in memory
+                        // starting at address I. The offset from I is
+                        // increased by 1 for each value written, but I itself
+                        // is left unmodified
+                        for i in 0..(x + 1) {
+                            self.memory[self.index as usize + i] = self.v[i];
+                        }
+                        self.pc += 2;
+                    }
+                    0x0064 => {
+                        // 0xFX65 Fills V0 to VX (including VX) with values
+                        // from memory starting at address I. The offset from I
+                        // is increased by 1 for each value written, but I
+                        // itself is left unmodified
+                        for i in 0..(x + 1) {
+                            self.v[i] = self.memory[self.index as usize + i];
+                        }
+                        self.pc += 2;
+                    }
+                    _ => println!("unk {:x}", self.opcode),
+                }
+            }
+            _ => println!("opc {:x}", self.opcode),
+        }
     }
 }
 
@@ -88,6 +290,5 @@ mod tests {
         let mut c = Chip8::new();
         c.load_game("Cargo.toml");
         c.emulate_cycle();
-        // println!("{:?}", c.memory);
     }
 }
