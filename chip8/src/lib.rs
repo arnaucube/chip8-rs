@@ -16,7 +16,7 @@ pub struct Chip8 {
     sound_timer: u8,
     stack: [u16; 16],
     sp: isize,
-    key: [u8; 16],
+    pub key: [u8; 16],
     pub draw_flag: bool,
 }
 
@@ -71,12 +71,13 @@ impl Chip8 {
         }
     }
     pub fn emulate_cycle(&mut self) {
-        self.opcode = (self.memory[self.pc as usize] as u16) << 8
-            | self.memory[(self.pc + 1) as usize] as u16;
+        self.opcode = ((self.memory[self.pc as usize] as u16) << 8)
+            | (self.memory[(self.pc + 1) as usize] as u16);
         let x: usize = ((self.opcode & 0x0F00) >> 8) as usize;
         let y: usize = ((self.opcode & 0x00F0) >> 4) as usize;
         let nn: u8 = (self.opcode & 0x00FF) as u8;
         let nnn: u16 = (self.opcode & 0x0FFF) as u16;
+        // println!("{:?} {:?}", self.opcode, self.pc);
 
         // Decode Opcode
         // https://en.wikipedia.org/wiki/CHIP-8#Opcode_table
@@ -275,7 +276,7 @@ impl Chip8 {
                             if self.gfx[pos] == 1 {
                                 self.v[0xF] = 1;
                             } else {
-                                self.v[0xF] ^= 1;
+                                self.gfx[pos] ^= 1;
                             }
                         }
                     }
@@ -367,7 +368,7 @@ impl Chip8 {
                         }
                         self.pc += 2;
                     }
-                    0x0064 => {
+                    0x0065 => {
                         // 0xFX65 Fills V0 to VX (including VX) with values
                         // from memory starting at address I. The offset from I
                         // is increased by 1 for each value written, but I
@@ -381,6 +382,15 @@ impl Chip8 {
                 }
             }
             _ => println!("opc {:x}", self.opcode),
+        }
+        if self.delay_timer > 0 {
+            self.delay_timer -= 1;
+        }
+        if self.sound_timer > 0 {
+            if self.sound_timer == 1 {
+                println!("Beep");
+            }
+            self.sound_timer -= 1;
         }
     }
 }
