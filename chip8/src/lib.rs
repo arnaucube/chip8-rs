@@ -11,7 +11,7 @@ pub struct Chip8 {
     v: [u8; 16],
     index: u16,
     pc: u16,
-    gfx: [u8; w * h],
+    pub gfx: [u8; w * h],
     delay_timer: u8,
     sound_timer: u8,
     stack: [u16; 16],
@@ -146,7 +146,84 @@ impl Chip8 {
                 self.pc += 2;
             }
             0x8000 => {
-                // TODO
+                match self.opcode & 0x000F {
+                    0x0000 => {
+                        // 0x8XY0 Sets VX to the value of VY
+                        self.v[x] = self.v[y];
+                        self.pc += 2;
+                    }
+                    0x0001 => {
+                        // 0x8XY1 Sets VX to VX or VY. (Bitwise OR operation)
+                        self.v[x] = (self.v[x] | self.v[y]);
+                        self.pc += 2;
+                    }
+                    0x0002 => {
+                        // 0x8XY2 Sets VX to VX and VY. (Bitwise AND operation)
+                        self.v[x] = (self.v[x] & self.v[y]);
+                        self.pc += 2;
+                    }
+                    0x0003 => {
+                        // 0x8XY3 Sets VX to VX xor VY
+                        self.v[x] = (self.v[x] ^ self.v[y]);
+                        self.pc += 2;
+                    }
+                    0x0004 => {
+                        // 0x8XY4 Adds VY to VX. VF is set to 1 when there's a
+                        // carry, and to 0 when there isn't
+                        if self.v[y] > (0xFF - self.v[x]) {
+                            self.v[0xF] = 1;
+                        } else {
+                            self.v[0xF] = 0;
+                        }
+                        self.v[x] += self.v[y];
+                        self.pc += 2;
+                    }
+                    0x0005 => {
+                        // 0x8XY5 VY is subtracted from VX. VF is set to 0 when
+                        // there's a borrow, and 1 when there isn't
+                        if self.v[x] > self.v[y] {
+                            self.v[0xF] = 1;
+                        } else {
+                            self.v[0xF] = 0;
+                        }
+                        self.v[x] -= self.v[y];
+                        self.pc += 2;
+                    }
+                    0x0006 => {
+                        // 0x8XY6 Stores the least significant bit of VX in VF
+                        // and then shifts VX to the right by 1
+                        if self.opcode & 0x1 >= 1 {
+                            self.v[0xF] = 1;
+                        } else {
+                            self.v[0xF] = 0;
+                        }
+                        self.v[x] = self.v[x] >> 1;
+                        self.pc += 2;
+                    }
+                    0x0007 => {
+                        // 0x8XY7 Sets VX to VY minus VX. VF is set to 0 when
+                        // there's a borrow, and 1 when there isn't
+                        if self.v[y] > self.v[x] {
+                            self.v[0xF] = 1;
+                        } else {
+                            self.v[0xF] = 0;
+                        }
+                        self.v[x] = self.v[y] - self.v[x];
+                        self.pc += 2;
+                    }
+                    0x000E => {
+                        // 0x8XYE Stores the most significant bit of VX in VF
+                        // and then shifts VX to the left by 1
+                        if self.opcode & 0x80 == 0x80 {
+                            self.v[0xF] = 1;
+                        } else {
+                            self.v[0xF] = 0;
+                        }
+                        self.v[x] = self.v[x] << 1;
+                        self.pc += 2;
+                    }
+                    _ => println!("unk {:x}", self.opcode),
+                }
             }
             0x9000 => {
                 // 9XY0 Skips the next instruction if VX doesn't equal VY.
@@ -176,7 +253,33 @@ impl Chip8 {
                 self.pc += 2;
             }
             0xD000 => {
-                // TODO
+                // DXYN Draws a sprite at coordinate (VX, VY) that has a width
+                // of 8 pixels and a height of N+1 pixels. Each row of 8 pixels
+                // is read as bit-coded starting from memory location I; I
+                // value doesn’t change after the execution of this
+                // instruction. As described above, VF is set to 1 if any
+                // screen pixels are flipped from set to unset when the sprite
+                // is drawn, and to 0 if that doesn’t happen
+                let heigh = self.opcode & 0x000F;
+                let mut pixel: u8;
+                self.v[0xF] = 0;
+                for yline in 0..heigh {
+                    pixel = self.memory[(self.index + yline) as usize];
+                    for xline in 0..8 {
+                        if (pixel & (0x80 >> xline)) != 0 {
+                            let pos = (self.v[x] as u16 + xline) as usize
+                                + (self.v[y] as u16 + yline) as usize * w;
+                            if pos >= 2048 {
+                                break;
+                            }
+                            if self.gfx[pos] == 1 {
+                                self.v[0xF] = 1;
+                            } else {
+                                self.v[0xF] ^= 1;
+                            }
+                        }
+                    }
+                }
 
                 self.draw_flag = true;
                 self.pc += 2;
