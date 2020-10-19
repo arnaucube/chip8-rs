@@ -30,7 +30,7 @@ impl SdlEmulator {
         let video_subsystem = sdl_context.video().unwrap();
 
         let window = video_subsystem
-            .window("rust-sdl2 demo", (w * zoom) as u32, (h * zoom) as u32)
+            .window("chip8-rs", (w * zoom) as u32, (h * zoom) as u32)
             .position_centered()
             .build()
             .unwrap();
@@ -45,14 +45,15 @@ impl SdlEmulator {
         vkeys.insert(Keycode::Q, 0x04);
         vkeys.insert(Keycode::W, 0x05);
         vkeys.insert(Keycode::E, 0x06);
-        vkeys.insert(Keycode::R, 0x07);
-        vkeys.insert(Keycode::A, 0x08);
-        vkeys.insert(Keycode::S, 0x09);
-        vkeys.insert(Keycode::D, 0x0E);
-        vkeys.insert(Keycode::F, 0x0A);
-        vkeys.insert(Keycode::Z, 0x00);
-        vkeys.insert(Keycode::X, 0x0B);
-        vkeys.insert(Keycode::V, 0x0F);
+        vkeys.insert(Keycode::R, 0x0d);
+        vkeys.insert(Keycode::A, 0x07);
+        vkeys.insert(Keycode::S, 0x08);
+        vkeys.insert(Keycode::D, 0x09);
+        vkeys.insert(Keycode::F, 0x0e);
+        vkeys.insert(Keycode::Z, 0x0a);
+        vkeys.insert(Keycode::X, 0x00);
+        vkeys.insert(Keycode::C, 0x0b);
+        vkeys.insert(Keycode::V, 0x0f);
 
         SdlEmulator {
             w,
@@ -152,6 +153,6 @@ fn main() {
             e.draw_graphics();
         }
         e.set_keys();
-        std::thread::sleep(time::Duration::from_millis(1000 / 60));
+        std::thread::sleep(time::Duration::from_millis(200 / 60));
     }
 }

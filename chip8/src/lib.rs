@@ -15,7 +15,7 @@ pub struct Chip8 {
     delay_timer: u8,
     sound_timer: u8,
     stack: [u16; 16],
-    sp: isize,
+    sp: usize,
     pub key: [u8; 16],
     pub draw_flag: bool,
 }
@@ -77,7 +77,7 @@ impl Chip8 {
         let y: usize = ((self.opcode & 0x00F0) >> 4) as usize;
         let nn: u8 = (self.opcode & 0x00FF) as u8;
         let nnn: u16 = (self.opcode & 0x0FFF) as u16;
-        // println!("{:?} {:?}", self.opcode, self.pc);
+        // println!("{:x} {:?}", self.opcode, self.pc);
 
         // Decode Opcode
         // https://en.wikipedia.org/wiki/CHIP-8#Opcode_table
@@ -95,10 +95,10 @@ impl Chip8 {
                     0x000E => {
                         // 00EE Returns from a subroutine
                         self.sp -= 1;
-                        self.pc = self.stack[self.sp as usize];
+                        self.pc = self.stack[self.sp];
                         self.pc += 2;
                     }
-                    _ => println!("unk {:x}", self.opcode),
+                    _ => println!("Unknown opcode: {:x}", self.opcode),
                 }
             }
             0x1000 => {
@@ -107,7 +107,7 @@ impl Chip8 {
             }
             0x2000 => {
                 // 2NNN Calls subroutine at NNN
-                self.stack[self.sp as usize] = self.pc;
+                self.stack[self.sp] = self.pc;
                 self.sp += 1;
                 self.pc = nnn;
             }
@@ -143,7 +143,7 @@ impl Chip8 {
             }
             0x7000 => {
                 // 7XNN Adds NN to VX. (Carry flag is not changed)
-                self.v[x] += nn;
+                self.v[x] = self.v[x].wrapping_add(nn);
                 self.pc += 2;
             }
             0x8000 => {
@@ -176,7 +176,7 @@ impl Chip8 {
                         } else {
                             self.v[0xF] = 0;
                         }
-                        self.v[x] += self.v[y];
+                        self.v[x] = self.v[x].wrapping_add(self.v[y]);
                         self.pc += 2;
                     }
                     0x0005 => {
@@ -187,7 +187,7 @@ impl Chip8 {
                         } else {
                             self.v[0xF] = 0;
                         }
-                        self.v[x] -= self.v[y];
+                        self.v[x] = self.v[x].wrapping_sub(self.v[y]);
                         self.pc += 2;
                     }
                     0x0006 => {
@@ -198,7 +198,7 @@ impl Chip8 {
                         } else {
                             self.v[0xF] = 0;
                         }
-                        self.v[x] = self.v[x] >> 1;
+                        self.v[x] = self.v[x].wrapping_shr(1);
                         self.pc += 2;
                     }
                     0x0007 => {
@@ -209,7 +209,7 @@ impl Chip8 {
                         } else {
                             self.v[0xF] = 0;
                         }
-                        self.v[x] = self.v[y] - self.v[x];
+                        self.v[x] = self.v[y].wrapping_sub(self.v[x]);
                         self.pc += 2;
                     }
                     0x000E => {
@@ -220,10 +220,10 @@ impl Chip8 {
                         } else {
                             self.v[0xF] = 0;
                         }
-                        self.v[x] = self.v[x] << 1;
+                        self.v[x] = self.v[x].wrapping_shl(1);
                         self.pc += 2;
                     }
-                    _ => println!("unk {:x}", self.opcode),
+                    _ => println!("Unknown opcode: {:x}", self.opcode),
                 }
             }
             0x9000 => {
@@ -243,7 +243,7 @@ impl Chip8 {
             0xB000 => {
                 // BNNN Jumps to the address NNN plus V0
                 self.pc = nnn + self.v[0] as u16;
-                self.pc += 2;
+                // self.pc += 2;
             }
             0xC000 => {
                 // CXNN Sets VX to the result of a bitwise and operation on a
@@ -275,9 +275,8 @@ impl Chip8 {
                             }
                             if self.gfx[pos] == 1 {
                                 self.v[0xF] = 1;
-                            } else {
-                                self.gfx[pos] ^= 1;
                             }
+                            self.gfx[pos] ^= 1;
                         }
                     }
                 }
@@ -305,7 +304,7 @@ impl Chip8 {
                         }
                         self.pc += 2;
                     }
-                    _ => println!("unk {:x}", self.opcode),
+                    _ => println!("Unknown opcode: {:x}", self.opcode),
                 }
             }
             0xF000 => {
@@ -378,10 +377,10 @@ impl Chip8 {
                         }
                         self.pc += 2;
                     }
-                    _ => println!("unk {:x}", self.opcode),
+                    _ => println!("Unknown opcode: {:x}", self.opcode),
                 }
             }
-            _ => println!("opc {:x}", self.opcode),
+            _ => println!("Unknown opcode: {:x}", self.opcode),
         }
         if self.delay_timer > 0 {
             self.delay_timer -= 1;
